@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd">
+
+
+    <!-- 配置activeMQ连接  tcp://192.168.0.66:61616 -->
+    <bean id="targetConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+        <property name="useAsyncSend" value="${activemq.connnect.useAsyncSend}"></property>
+        <property name="brokerURL" value="${activemq.connnect.brokerurl}"/>
+        <property name="sendTimeout" value="${activemq.sendTimeout}"/>
+    </bean>
+
+    <!-- 通过往PooledConnectionFactory注入一个ActiveMQConnectionFactory可以用来将Connection，Session和MessageProducer池化
+        这样可以大大减少我们的资源消耗， -->
+    <bean id="pooledConnectionFactory" class="org.apache.activemq.pool.PooledConnectionFactory">
+        <property name="connectionFactory" ref="targetConnectionFactory"/>
+        <property name="maxConnections" value="${activemq.maxConnections}"/>
+    </bean>
+
+    <!-- 定义JmsTemplate的Queue类型 -->
+    <bean id="jmsQueueTemplate" class="org.springframework.jms.core.JmsTemplate">
+        <constructor-arg ref="pooledConnectionFactory"/>
+        <!-- 非pub/sub模型（发布/订阅），即队列模式 -->
+        <property name="pubSubDomain" value="false"/>
+
+        <property name="sessionAcknowledgeMode" value="4"></property>
+    </bean>
+
+    <!--
+     AUTO_ACKNOWLEDGE = 1    自动确认
+     CLIENT_ACKNOWLEDGE = 2    客户端手动确认
+     DUPS_OK_ACKNOWLEDGE = 3    自动批量确认
+     SESSION_TRANSACTED = 0    事务提交并确认
+     INDIVIDUAL_ACKNOWLEDGE = 4    单条消息确认
+     -->
+    <!-- 订单属性计算（FOS 分单）-->
+    <bean id="calAttrListenerContainer" class="org.springframework.jms.listener.DefaultMessageListenerContainer">
+        <property name="connectionFactory" ref="pooledConnectionFactory"/>
+        <property name="destinationName" value="AAAA.queue"/>
+        <!--    设置成客户端手动确认
+                异常时，会重试7次，超过7次进入私信队列
+         -->
+        <property name="sessionAcknowledgeMode" value="2"/>
+
+        <property name="messageListener">
+            <bean class="cn.web1992.spring.boots.activemq.activemq.AAListener"/>
+        </property>
+        <property name="concurrency" value="10-30"/>
+    </bean>
+
+
+</beans>
